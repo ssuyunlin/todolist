@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-TW" class="h-full">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>質感待辦事項管理 | TaskFlow</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- FontAwesome Icon CDN -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Google Font Inter & Outfit -->
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@400;500;600;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'Microsoft JhengHei', 'sans-serif'],
+                        display: ['Outfit', 'sans-serif'],
+                    },
+                    colors: {
+                        brand: {
+                            pink: '#f472b6',
+                            lightPink: '#fce7f3',
+                            blue: '#38bdf8',
+                            lightBlue: '#e0f2fe',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: rgba(0, 0, 0, 0.03);
+        }
+        ::-webkit-scrollbar-thumb {
+            background: rgba(244, 114, 182, 0.3);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(244, 114, 182, 0.5);
+        }
+
+        .task-card {
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+        .task-card:hover {
+            transform: translateY(-2px);
+        }
+
+        .completed-text {
+            text-decoration: line-through;
+            opacity: 0.55;
+        }
+
+        /* Gradient Glass Effect */
+        .glass-panel {
+            background: rgba(255, 255, 255, 0.88);
+            backdrop-filter: blur(12px);
+            -webkit-backdrop-filter: blur(12px);
+        }
+
+        /* Checkbox checkmark animation */
+        .custom-checkbox input:checked ~ .checkmark {
+            background-color: #f472b6;
+            border-color: #f472b6;
+        }
+        .custom-checkbox input:checked ~ .checkmark:after {
+            display: block;
+        }
+        .checkmark:after {
+            content: "";
+            position: absolute;
+            display: none;
+            left: 6px;
+            top: 2px;
+            width: 5px;
+            height: 10px;
+            border: solid white;
+            border-width: 0 2.5px 2.5px 0;
+            transform: rotate(45deg);
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        .animate-fade-in {
+            animation: fadeIn 0.3s ease-out forwards;
+        }
+    </style>
+</head>
+<body class="bg-gradient-to-br from-pink-100/80 via-sky-100/60 to-pink-100/80 text-slate-700 font-sans min-h-full flex flex-col justify-between selection:bg-pink-300 selection:text-white">
+
+    <div class="fixed inset-0 -z-10 overflow-hidden pointer-events-none">
+        <div class="absolute -top-[10%] -right-[10%] w-[500px] h-[500px] rounded-full bg-pink-200/70 blur-3xl"></div>
+        <div class="absolute top-[25%] -left-[10%] w-[450px] h-[450px] rounded-full bg-sky-200/70 blur-3xl"></div>
+        <div class="absolute -bottom-[10%] right-[20%] w-[450px] h-[450px] rounded-full bg-pink-200/60 blur-3xl"></div>
+    </div>
+
+    <div class="max-w-4xl w-full mx-auto px-4 pt-2 sm:px-6 sm:pt-3 lg:px-8 flex-grow">
+        <!-- APP HEADER -->
+        <header class="mb-3">
+            <div class="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-2 mb-3">
+                <div>
+                    <div class="flex items-center gap-3">
+                        <div class="w-10 h-10 rounded-xl bg-gradient-to-tr from-pink-300 via-pink-400 to-sky-300 text-white flex items-center justify-center shadow-md shadow-pink-200/70">
+                            <i class="fa-solid fa-check-double text-lg"></i>
+                        </div>
+                        <h1 class="text-2xl sm:text-3xl font-bold font-display tracking-tight text-slate-800">TaskFlow</h1>
+                    </div>
+                    <p class="text-xs sm:text-sm text-slate-500 mt-0.5" id="currentDateText">載入日期中...</p>
+                </div>
+                
+                <!-- Clear Completed & Data Stats -->
+                <div class="flex items-center gap-2">
+                    <button id="clearCompletedBtn" onclick="clearCompletedTasks()" class="px-3.5 py-1.5 text-xs font-medium text-pink-600 bg-pink-50/90 hover:bg-pink-100/80 rounded-lg transition-colors flex items-center gap-1.5 shadow-sm border border-pink-200/60 disabled:opacity-40 disabled:cursor-not-allowed" disabled>
+                        <i class="fa-regular fa-trash-can"></i>
+                        清理已完成
+                    </button>
+                </div>
+            </div>
+
+            <!-- Progress Tracker -->
+            <div class="glass-panel p-3.5 rounded-2xl border border-white/90 shadow-sm relative overflow-hidden">
+                <div class="flex justify-between items-center mb-1.5">
+                    <span class="text-xs sm:text-sm font-semibold text-slate-700 flex items-center gap-2">
+                        <i class="fa-solid fa-chart-line text-pink-400"></i>
+                        今日完成進度
+                    </span>
+                    <span class="text-xs font-bold text-pink-500 bg-pink-100/70 px-2.5 py-0.5 rounded-full border border-pink-200/60" id="progressPercent">0%</span>
+                </div>
+                <div class="w-full bg-slate-200/60 h-2.5 rounded-full overflow-hidden p-0.5">
+                    <div id="progressBar" class="bg-gradient-to-r from-pink-300 via-sky-300 to-blue-300 h-full rounded-full transition-all duration-500 ease-out w-0"></div>
+                </div>
+                <div class="flex justify-between items-center mt-2 text-xs text-slate-500">
+                    <span id="statsSummary">共 0 項任務，已完成 0 項</span>
+                    <span id="streakBadge" class="hidden text-amber-600 font-medium items-center gap-1">
+                        <i class="fa-solid fa-fire text-amber-500"></i> <span id="streakText">全部完成！</span>
+                    </span>
+                </div>
+            </div>
+        </header>
+
+        <!-- TASK INPUT SECTION -->
+        <section class="glass-panel rounded-2xl p-3.5 sm:p-4 border border-white/90 shadow-sm mb-3 transition-all">
+            <form id="todoForm" onsubmit="handleAddTask(event)" class="space-y-3">
+                <div class="flex flex-col sm:flex-row gap-2.5">
+                    <div class="relative flex-grow">
+                        <input type="text" id="taskInput" placeholder="準備要做些什麼事呢..." required
+                            class="w-full pl-4 pr-10 py-2.5 rounded-xl border border-pink-200/80 bg-white/90 text-slate-800 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-300 focus:border-pink-300 text-sm shadow-xs transition-all">
+                        <span class="absolute right-3 top-1/2 -translate-y-1/2 text-pink-300">
+                            <i class="fa-solid fa-pen"></i>
+                        </span>
+                    </div>
+                    <button type="submit" 
+                        class="px-5 py-2.5 bg-gradient-to-r from-pink-300 via-pink-400 to-sky-300 hover:from-pink-400 hover:to-sky-400 active:scale-95 text-white font-semibold text-sm rounded-xl shadow-md shadow-pink-200/60 transition-all flex items-center justify-center gap-2 shrink-0">
+                        <i class="fa-solid fa-plus"></i>
+                        新增任務
+                    </button>
+                </div>
+
+                <!-- Secondary Metadata Controls (Priority, Category, Due Date) -->
+                <div class="grid grid-cols-1 sm:grid-cols-3 gap-2.5 pt-2 border-t border-pink-100/60">
+                    <!-- Priority Selector -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 mb-1">優先程度</label>
+                        <select id="priorityInput" class="w-full py-1.5 px-3 text-xs rounded-lg border border-pink-200/70 bg-white/90 text-slate-700 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                            <option value="low">🟢 低優先</option>
+                            <option value="medium" selected>🟡 中優先</option>
+                            <option value="high">🔴 高優先</option>
+                        </select>
+                    </div>
+
+                    <!-- Category Selector -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 mb-1">類別</label>
+                        <select id="categoryInput" class="w-full py-1.5 px-3 text-xs rounded-lg border border-pink-200/70 bg-white/90 text-slate-700 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                            <option value="work">💼 工作</option>
+                            <option value="personal" selected>🏠 個人</option>
+                            <option value="shopping">🛒 購物</option>
+                            <option value="study">📚 學習</option>
+                            <option value="other">📌 其他</option>
+                        </select>
+                    </div>
+
+                    <!-- Due Date Input -->
+                    <div>
+                        <label class="block text-[11px] font-semibold text-slate-500 mb-1">預計完成日 (可選)</label>
+                        <input type="date" id="dueDateInput" class="w-full py-1.5 px-3 text-xs rounded-lg border border-pink-200/70 bg-white/90 text-slate-700 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                    </div>
+                </div>
+            </form>
+        </section>
+
+        <!-- TOOLBAR: SEARCH & FILTER & SORT -->
+        <section class="flex flex-col sm:flex-row gap-3 justify-between items-stretch sm:items-center mb-4">
+            <!-- Filter Tabs -->
+            <div class="flex bg-pink-100/60 p-1 rounded-xl text-xs font-medium text-slate-600 border border-pink-200/40 self-start sm:self-auto">
+                <button onclick="setFilter('all')" id="filter-all" class="filter-tab px-3 py-1.2 rounded-lg transition-all bg-white text-pink-500 shadow-xs font-semibold">
+                    全部
+                </button>
+                <button onclick="setFilter('active')" id="filter-active" class="filter-tab px-3 py-1.2 rounded-lg transition-all hover:text-slate-900">
+                    進行中
+                </button>
+                <button onclick="setFilter('completed')" id="filter-completed" class="filter-tab px-3 py-1.2 rounded-lg transition-all hover:text-slate-900">
+                    已完成
+                </button>
+            </div>
+
+            <!-- Search and Sort Controls -->
+            <div class="flex flex-wrap sm:flex-nowrap items-center gap-2">
+                <!-- Search Input -->
+                <div class="relative flex-grow sm:flex-grow-0 sm:w-48">
+                    <input type="text" id="searchInput" oninput="renderTodos()" placeholder="搜尋事項..." 
+                        class="w-full pl-8 pr-3 py-1.5 text-xs rounded-lg border border-pink-200/70 bg-white/90 text-slate-700 placeholder-slate-400 focus:outline-none focus:ring-2 focus:ring-pink-300">
+                    <i class="fa-solid fa-magnifying-glass absolute left-2.5 top-1/2 -translate-y-1/2 text-pink-300 text-xs"></i>
+                </div>
+
+                <!-- Sort Selector -->
+                <select id="sortInput" onchange="renderTodos()" class="py-1.5 px-2.5 text-xs rounded-lg border border-pink-200/70 bg-white text-slate-700 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                    <option value="created-desc">🆕 最新建立</option>
+                    <option value="created-asc">⏳ 最早建立</option>
+                    <option value="priority-desc">🔥 優先度最高</option>
+                    <option value="dueDate-asc">📅 截止日最快</option>
+                </select>
+            </div>
+        </section>
+
+        <!-- TODO LIST CONTAINER -->
+        <main id="todoList" class="space-y-2.5 min-h-[200px]">
+            <!-- Items rendered dynamically via JS -->
+        </main>
+
+        <!-- EMPTY STATE TEMPLATE -->
+        <div id="emptyState" class="hidden flex-col items-center justify-center py-12 text-center glass-panel rounded-2xl border border-dashed border-pink-200">
+            <div class="w-14 h-14 rounded-full bg-pink-50 text-pink-400 flex items-center justify-center text-xl mb-2.5">
+                <i class="fa-regular fa-clipboard"></i>
+            </div>
+            <h3 class="text-sm font-semibold text-slate-700 mb-1" id="emptyStateTitle">目前尚無代辦事項</h3>
+            <p class="text-xs text-slate-400 max-w-xs" id="emptyStateDesc">在上方輸入欄中新增您的第一個任務吧！所有資料都會儲存在本地端。</p>
+        </div>
+    </div>
+
+    <!-- FOOTER -->
+    <footer class="py-4 text-center text-xs text-slate-400 border-t border-pink-100/60 mt-8 bg-white/40 backdrop-blur-xs">
+        <p>✨ 資料會自動同步寫入至瀏覽器 LocalStorage 本地儲存空間</p>
+    </footer>
+
+    <!-- EDIT MODAL -->
+    <div id="editModal" class="fixed inset-0 bg-slate-900/30 backdrop-blur-xs flex items-center justify-center p-4 z-50 hidden opacity-0 transition-opacity duration-200">
+        <div class="bg-white rounded-2xl p-5 max-w-md w-full shadow-2xl border border-pink-100 transform scale-95 transition-transform duration-200" id="editModalCard">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-base font-bold text-slate-800 flex items-center gap-2">
+                    <i class="fa-solid fa-pen-to-square text-pink-400"></i> 編輯代辦事項
+                </h3>
+                <button onclick="closeEditModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-lg"></i>
+                </button>
+            </div>
+            
+            <div class="space-y-3">
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">任務名稱</label>
+                    <input type="text" id="editTaskText" class="w-full px-3 py-2 text-sm rounded-lg border border-slate-200 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-2.5">
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">優先程度</label>
+                        <select id="editPriority" class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                            <option value="low">🟢 低優先</option>
+                            <option value="medium">🟡 中優先</option>
+                            <option value="high">🔴 高優先</option>
+                        </select>
+                    </div>
+                    <div>
+                        <label class="block text-xs font-semibold text-slate-600 mb-1">類別</label>
+                        <select id="editCategory" class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                            <option value="work">💼 工作</option>
+                            <option value="personal">🏠 個人</option>
+                            <option value="shopping">🛒 購物</option>
+                            <option value="study">📚 學習</option>
+                            <option value="other">📌 其他</option>
+                        </select>
+                    </div>
+                </div>
+
+                <div>
+                    <label class="block text-xs font-semibold text-slate-600 mb-1">預計完成日</label>
+                    <input type="date" id="editDueDate" class="w-full px-3 py-1.5 text-xs rounded-lg border border-slate-200 focus:ring-2 focus:ring-pink-300 focus:outline-none">
+                </div>
+
+                <div class="flex justify-end gap-2 pt-2">
+                    <button onclick="closeEditModal()" class="px-4 py-1.5 text-xs font-medium text-slate-600 hover:bg-slate-100 rounded-lg transition-colors">
+                        取消
+                    </button>
+                    <button onclick="saveEditTask()" class="px-4 py-1.5 text-xs font-semibold bg-gradient-to-r from-pink-300 via-pink-400 to-sky-300 hover:from-pink-400 hover:to-sky-400 text-white rounded-lg shadow-xs transition-all">
+                        儲存變更
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Storage key constant
+        const STORAGE_KEY = 'taskflow_todos_data_v1';
+
+        // App State Variables
+        let todos = [];
+        let currentFilter = 'all'; // 'all', 'active', 'completed'
+        let editingTaskId = null;
+
+        // Priority badges mapping
+        const priorityMap = {
+            high: { label: '高優先', bg: 'bg-rose-50', text: 'text-rose-600', border: 'border-rose-200', icon: '🔴', weight: 3 },
+            medium: { label: '中優先', bg: 'bg-amber-50', text: 'text-amber-600', border: 'border-amber-200', icon: '🟡', weight: 2 },
+            low: { label: '低優先', bg: 'bg-emerald-50', text: 'text-emerald-600', border: 'border-emerald-200', icon: '🟢', weight: 1 }
+        };
+
+        // Category labels mapping (Macaron color scheme)
+        const categoryMap = {
+            work: { label: '工作', icon: 'fa-briefcase', bg: 'bg-sky-100/90', text: 'text-sky-700' },
+            personal: { label: '個人', icon: 'fa-house', bg: 'bg-pink-100/90', text: 'text-pink-700' },
+            shopping: { label: '購物', icon: 'fa-cart-shopping', bg: 'bg-amber-100/90', text: 'text-amber-700' },
+            study: { label: '學習', icon: 'fa-book', bg: 'bg-teal-100/90', text: 'text-teal-700' },
+            other: { label: '其他', icon: 'fa-bookmark', bg: 'bg-slate-100', text: 'text-slate-600' }
+        };
+
+        window.addEventListener('DOMContentLoaded', () => {
+            renderCurrentDate();
+            loadTodos();
+            renderTodos();
+        });
+
+        // Format Date String for Header
+        function renderCurrentDate() {
+            const now = new Date();
+            const options = { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' };
+            document.getElementById('currentDateText').textContent = now.toLocaleDateString('zh-TW', options);
+        }
+
+        // Load Todos from LocalStorage
+        function loadTodos() {
+            try {
+                const storedData = localStorage.getItem(STORAGE_KEY);
+                if (storedData) {
+                    todos = JSON.parse(storedData);
+                } else {
+                    // 預設無初始資料
+                    todos = [];
+                    saveTodos();
+                }
+            } catch (error) {
+                console.error('讀取 LocalStorage 時發生錯誤:', error);
+                todos = [];
+            }
+        }
+
+        // Save Todos to LocalStorage
+        function saveTodos() {
+            try {
+                localStorage.setItem(STORAGE_KEY, JSON.stringify(todos));
+            } catch (error) {
+                console.error('寫入 LocalStorage 時發生錯誤:', error);
+            }
+        }
+
+        function getTodayFormattedString() {
+            const date = new Date();
+            return date.toISOString().split('T')[0];
+        }
+
+        // Add new Todo item
+        function handleAddTask(e) {
+            e.preventDefault();
+            const textInput = document.getElementById('taskInput');
+            const priorityInput = document.getElementById('priorityInput');
+            const categoryInput = document.getElementById('categoryInput');
+            const dueDateInput = document.getElementById('dueDateInput');
+
+            const text = textInput.value.trim();
+            if (!text) return;
+
+            const newTodo = {
+                id: Date.now(),
+                text: text,
+                completed: false,
+                priority: priorityInput.value,
+                category: categoryInput.value,
+                dueDate: dueDateInput.value,
+                createdAt: Date.now()
+            };
+
+            todos.unshift(newTodo); // Add to top
+            saveTodos();
+            renderTodos();
+
+            // Reset Form Text only
+            textInput.value = '';
+            dueDateInput.value = '';
+            textInput.focus();
+        }
+
+        // Toggle completion status
+        function toggleTodo(id) {
+            todos = todos.map(todo => {
+                if (todo.id === id) {
+                    return { ...todo, completed: !todo.completed };
+                }
+                return todo;
+            });
+            saveTodos();
+            renderTodos();
+        }
+
+        // Delete single Todo item
+        function deleteTodo(id) {
+            todos = todos.filter(todo => todo.id !== id);
+            saveTodos();
+            renderTodos();
+        }
+
+        // Clear all completed tasks
+        function clearCompletedTasks() {
+            const completedCount = todos.filter(t => t.completed).length;
+            if (completedCount === 0) return;
+
+            todos = todos.filter(todo => !todo.completed);
+            saveTodos();
+            renderTodos();
+        }
+
+        function setFilter(filterType) {
+            currentFilter = filterType;
+            
+            // Update UI Tab States
+            document.querySelectorAll('.filter-tab').forEach(tab => {
+                tab.classList.remove('bg-white', 'text-pink-500', 'shadow-xs', 'font-semibold');
+                tab.classList.add('hover:text-slate-900');
+            });
+
+            const activeTab = document.getElementById(`filter-${filterType}`);
+            if (activeTab) {
+                activeTab.classList.add('bg-white', 'text-pink-500', 'shadow-xs', 'font-semibold');
+                activeTab.classList.remove('hover:text-slate-900');
+            }
+
+            renderTodos();
+        }
+
+        function openEditModal(id) {
+            const todo = todos.find(t => t.id === id);
+            if (!todo) return;
+
+            editingTaskId = id;
+            document.getElementById('editTaskText').value = todo.text;
+            document.getElementById('editPriority').value = todo.priority;
+            document.getElementById('editCategory').value = todo.category;
+            document.getElementById('editDueDate').value = todo.dueDate || '';
+
+            const modal = document.getElementById('editModal');
+            const card = document.getElementById('editModalCard');
+            modal.classList.remove('hidden');
+            setTimeout(() => {
+                modal.classList.remove('opacity-0');
+                card.classList.remove('scale-95');
+                card.classList.add('scale-100');
+            }, 10);
+        }
+
+        function closeEditModal() {
+            const modal = document.getElementById('editModal');
+            const card = document.getElementById('editModalCard');
+            modal.classList.add('opacity-0');
+            card.classList.remove('scale-100');
+            card.classList.add('scale-95');
+            setTimeout(() => {
+                modal.classList.add('hidden');
+                editingTaskId = null;
+            }, 200);
+        }
+
+        function saveEditTask() {
+            if (!editingTaskId) return;
+
+            const newText = document.getElementById('editTaskText').value.trim();
+            if (!newText) return;
+
+            todos = todos.map(todo => {
+                if (todo.id === editingTaskId) {
+                    return {
+                        ...todo,
+                        text: newText,
+                        priority: document.getElementById('editPriority').value,
+                        category: document.getElementById('editCategory').value,
+                        dueDate: document.getElementById('editDueDate').value
+                    };
+                }
+                return todo;
+            });
+
+            saveTodos();
+            closeEditModal();
+            renderTodos();
+        }
+
+        // Main Render Function
+        function renderTodos() {
+            const listContainer = document.getElementById('todoList');
+            const emptyState = document.getElementById('emptyState');
+            const searchKeyword = document.getElementById('searchInput').value.toLowerCase().trim();
+            const sortMode = document.getElementById('sortInput').value;
+
+            // 1. Filter by tab
+            let filtered = todos.filter(todo => {
+                if (currentFilter === 'active') return !todo.completed;
+                if (currentFilter === 'completed') return todo.completed;
+                return true;
+            });
+
+            // 2. Filter by search keyword
+            if (searchKeyword) {
+                filtered = filtered.filter(todo => 
+                    todo.text.toLowerCase().includes(searchKeyword) ||
+                    (todo.dueDate && todo.dueDate.includes(searchKeyword))
+                );
+            }
+
+            // 3. Sort
+            filtered.sort((a, b) => {
+                if (sortMode === 'created-desc') return b.createdAt - a.createdAt;
+                if (sortMode === 'created-asc') return a.createdAt - b.createdAt;
+                if (sortMode === 'priority-desc') {
+                    return (priorityMap[b.priority]?.weight || 0) - (priorityMap[a.priority]?.weight || 0);
+                }
+                if (sortMode === 'dueDate-asc') {
+                    if (!a.dueDate) return 1;
+                    if (!b.dueDate) return -1;
+                    return a.dueDate.localeCompare(b.dueDate);
+                }
+                return 0;
+            });
+
+            // Update Progress Stats
+            updateStats();
+
+            // Toggle Empty State Visibility
+            if (filtered.length === 0) {
+                listContainer.innerHTML = '';
+                emptyState.classList.remove('hidden');
+                emptyState.classList.add('flex');
+
+                const emptyTitle = document.getElementById('emptyStateTitle');
+                const emptyDesc = document.getElementById('emptyStateDesc');
+
+                if (searchKeyword) {
+                    emptyTitle.textContent = '找不到相符的事項';
+                    emptyDesc.textContent = `嘗試更換關鍵字 "${searchKeyword}" 或清除搜尋。`;
+                } else if (currentFilter === 'active') {
+                    emptyTitle.textContent = '無進行中的事項 🎉';
+                    emptyDesc.textContent = '太棒了！所有待辦項目都已完成。';
+                } else if (currentFilter === 'completed') {
+                    emptyTitle.textContent = '尚無已完成事項';
+                    emptyDesc.textContent = '完成的事項會在這裡集中呈現。';
+                } else {
+                    emptyTitle.textContent = '目前尚無代辦事項';
+                    emptyDesc.textContent = '在上方輸入欄中新增您的第一個任務吧！所有資料都會儲存在本地端。';
+                }
+                return;
+            }
+
+            emptyState.classList.add('hidden');
+            emptyState.classList.remove('flex');
+
+            // Render Task Items
+            listContainer.innerHTML = filtered.map(todo => {
+                const priorityInfo = priorityMap[todo.priority] || priorityMap.medium;
+                const categoryInfo = categoryMap[todo.category] || categoryMap.other;
+                const isOverdue = todo.dueDate && !todo.completed && new Date(todo.dueDate) < new Date(new Date().setHours(0,0,0,0));
+
+                return `
+                    <div class="task-card animate-fade-in glass-panel p-4 rounded-xl border ${todo.completed ? 'border-slate-200/60 bg-white/50' : 'border-white/90 bg-white/90'} shadow-sm flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3">
+                        <div class="flex items-start gap-3 w-full sm:w-auto flex-grow">
+                            <!-- Custom Checkbox -->
+                            <label class="custom-checkbox relative flex items-center cursor-pointer mt-0.5 select-none shrink-0">
+                                <input type="checkbox" ${todo.completed ? 'checked' : ''} onchange="toggleTodo(${todo.id})" class="sr-only">
+                                <span class="checkmark w-5 h-5 rounded-md border-2 border-slate-300 bg-white transition-all hover:border-indigo-500"></span>
+                            </label>
+
+                            <div class="flex-grow space-y-1">
+                                <p class="text-sm text-slate-800 ${todo.completed ? 'completed-text' : 'font-medium'} break-all">
+                                    ${escapeHtml(todo.text)}
+                                </p>
+                                
+                                <div class="flex flex-wrap items-center gap-2 text-xs">
+                                    <!-- Category Badge -->
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md ${categoryInfo.bg} ${categoryInfo.text} font-medium text-[11px]">
+                                        <i class="fa-solid ${categoryInfo.icon} text-[10px]"></i>
+                                        ${categoryInfo.label}
+                                    </span>
+
+                                    <!-- Priority Badge -->
+                                    <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md ${priorityInfo.bg} ${priorityInfo.text} border ${priorityInfo.border} font-medium text-[11px]">
+                                        ${priorityInfo.icon} ${priorityInfo.label}
+                                    </span>
+
+                                    <!-- Due Date Badge -->
+                                    ${todo.dueDate ? `
+                                        <span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] ${isOverdue ? 'bg-rose-100 text-rose-700 font-semibold' : 'bg-slate-100 text-slate-500'}">
+                                            <i class="fa-regular fa-calendar-check text-[10px]"></i>
+                                            ${todo.dueDate} ${isOverdue ? '(已逾期)' : ''}
+                                        </span>
+                                    ` : ''}
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Action Buttons -->
+                        <div class="flex items-center gap-1 self-end sm:self-center shrink-0 pt-2 sm:pt-0 border-t sm:border-0 border-slate-100 w-full sm:w-auto justify-end">
+                            <button onclick="openEditModal(${todo.id})" class="p-2 text-slate-400 hover:text-pink-500 hover:bg-pink-50 rounded-lg transition-colors" title="編輯">
+                                <i class="fa-regular fa-pen-to-square text-sm"></i>
+                            </button>
+                            <button onclick="deleteTodo(${todo.id})" class="p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition-colors" title="刪除">
+                                <i class="fa-regular fa-trash-can text-sm"></i>
+                            </button>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function updateStats() {
+            const total = todos.length;
+            const completed = todos.filter(t => t.completed).length;
+            const percentage = total === 0 ? 0 : Math.round((completed / total) * 100);
+
+            // Update Progress Bar
+            const progressBar = document.getElementById('progressBar');
+            const progressPercent = document.getElementById('progressPercent');
+            const statsSummary = document.getElementById('statsSummary');
+            const streakBadge = document.getElementById('streakBadge');
+            const clearCompletedBtn = document.getElementById('clearCompletedBtn');
+
+            progressBar.style.width = `${percentage}%`;
+            progressPercent.textContent = `${percentage}%`;
+            statsSummary.textContent = `共 ${total} 項任務，已完成 ${completed} 項`;
+
+            // Enable/Disable Clear Completed button
+            clearCompletedBtn.disabled = completed === 0;
+
+            // Show celebratory badge when 100% complete with tasks
+            if (total > 0 && completed === total) {
+                streakBadge.classList.remove('hidden');
+                streakBadge.classList.add('flex');
+            } else {
+                streakBadge.classList.add('hidden');
+                streakBadge.classList.remove('flex');
+            }
+        }
+
+        // Helper function to escape HTML to prevent XSS
+        function escapeHtml(str) {
+            return str.replace(/[&<>"']/g, function(m) {
+                return {
+                    '&': '&amp;',
+                    '<': '&lt;',
+                    '>': '&gt;',
+                    '"': '&quot;',
+                    "'": '&#039;'
+                }[m];
+            });
+        }
+    </script>
+</body>
+</html>
